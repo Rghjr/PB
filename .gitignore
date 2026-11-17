@@ -1,0 +1,48 @@
+# Visual Studio / .vs cache & indeksy (blokowane przez VS podczas pracy)
+.vs/
+*.vsidx
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+
+# Katalogi kompilacji .NET / C#
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+publish/
+
+# Wyniki testów i pokrycia kodu
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# Pakiety NuGet i cache
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Inne edytory / IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Pliki tymczasowe systemu operacyjnego
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+*~
+*.tmp
+*.bak
