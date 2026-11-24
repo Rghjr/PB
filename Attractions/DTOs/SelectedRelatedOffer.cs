@@ -5,11 +5,12 @@ namespace Attractions.DTOs;
 public class SelectedRelatedOffer
 {
     public Offer Offer { get; }
-    public List<Addon> SelectedAddons { get; } = new();
+    public List<Addon> SelectedAddons { get; }
 
-    public SelectedRelatedOffer(Offer offer)
+    public SelectedRelatedOffer(Offer offer, IEnumerable<Addon>? selectedAddons = null)
     {
         Offer = offer ?? throw new ArgumentNullException(nameof(offer));
+        SelectedAddons = selectedAddons is not null ? new List<Addon>(selectedAddons) : new List<Addon>();
     }
 
     public decimal BasePrice => Offer.Price;

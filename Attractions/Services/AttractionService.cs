@@ -1,5 +1,6 @@
 using Attractions.Data;
 using Attractions.DTOs;
+using Attractions.Helpers;
 using Attractions.Models;
 
 namespace Attractions.Services;
@@ -27,31 +28,42 @@ public class AttractionService
             .ToList();
     }
 
-    public ServiceResult<Attraction> AddAttraction(string name, string description, string location)
+    public ServiceResult<Attraction> AddAttraction(
+        string name,
+        string description,
+        string location,
+        IEnumerable<FeatureAssignment>? features = null,
+        int maxParticipants = 30)
     {
-        if (string.IsNullOrWhiteSpace(name))
+        var validation = ValidateFields(name, location, maxParticipants, out string cleanName, out string cleanLocation);
+        if (!validation.IsSuccess)
         {
-            return ServiceResult<Attraction>.Fail("Nazwa atrakcji nie może być pusta.");
+            return ServiceResult<Attraction>.Fail(validation.Message);
         }
 
-        if (string.IsNullOrWhiteSpace(location))
-        {
-            return ServiceResult<Attraction>.Fail("Lokalizacja atrakcji nie może być pusta.");
-        }
-
-        var attraction = new Attraction
-        {
-            Id = InMemoryData.GetNextAttractionId(),
-            Name = name.Trim(),
-            Description = description?.Trim() ?? string.Empty,
-            Location = location.Trim()
-        };
+        var attraction = new Attraction(
+            id: InMemoryData.GetNextAttractionId(),
+            name: cleanName,
+            description: DomainValueHelper.CleanText(description),
+            location: cleanLocation,
+            maxParticipants: maxParticipants,
+            features: features);
 
         InMemoryData.Attractions.Add(attraction);
-        return ServiceResult<Attraction>.Ok(attraction, $"Dodano atrakcję \"{attraction.Name}\" (ID: {attraction.Id}).");
+        JsonFeatureStore.TrySaveAssignments(out _);
+
+        return ServiceResult<Attraction>.Ok(
+            attraction,
+            $"Dodano atrakcję \"{attraction.Name}\" (ID: {attraction.Id}, maks. osób: {attraction.MaxParticipants}).");
     }
 
-    public ServiceResult UpdateAttraction(int id, string name, string description, string location)
+    public ServiceResult UpdateAttraction(
+        int id,
+        string name,
+        string description,
+        string location,
+        IEnumerable<FeatureAssignment>? features = null,
+        int? maxParticipants = null)
     {
         var attraction = GetAttractionById(id);
         if (attraction is null)
@@ -59,21 +71,23 @@ public class AttractionService
             return ServiceResult.Fail($"Nie można edytować atrakcji – atrakcja o ID {id} nie istnieje.");
         }
 
-        if (string.IsNullOrWhiteSpace(name))
+        int resolvedMax = maxParticipants ?? attraction.MaxParticipants;
+        var validation = ValidateFields(name, location, resolvedMax, out string cleanName, out string cleanLocation);
+        if (!validation.IsSuccess)
         {
-            return ServiceResult.Fail("Nazwa atrakcji nie może być pusta.");
+            return validation;
         }
 
-        if (string.IsNullOrWhiteSpace(location))
-        {
-            return ServiceResult.Fail("Lokalizacja atrakcji nie może być pusta.");
-        }
+        attraction.UpdateDetails(
+            cleanName,
+            DomainValueHelper.CleanText(description),
+            cleanLocation,
+            resolvedMax,
+            features);
 
-        attraction.Name = name.Trim();
-        attraction.Description = description?.Trim() ?? string.Empty;
-        attraction.Location = location.Trim();
-
-        return ServiceResult.Ok($"Zaktualizowano atrakcję \"{attraction.Name}\" (ID: {attraction.Id}).");
+        JsonFeatureStore.TrySaveAssignments(out _);
+        return ServiceResult.Ok(
+            $"Zaktualizowano atrakcję \"{attraction.Name}\" (ID: {attraction.Id}, maks. osób: {attraction.MaxParticipants}).");
     }
 
     public ServiceResult DeleteAttraction(int id)
@@ -107,8 +121,37 @@ public class AttractionService
         }
 
         InMemoryData.Attractions.Remove(attraction);
+        JsonFeatureStore.TrySaveAssignments(out _);
 
         return ServiceResult.Ok(
             $"Usunięto atrakcję \"{attraction.Name}\" (ID: {id}), przypisane oferty ({offersToDelete.Count}) oraz ich dodatki ({deletedAddonsCount}).");
+    }
+
+    private static ServiceResult ValidateFields(
+        string? name,
+        string? location,
+        int maxParticipants,
+        out string cleanName,
+        out string cleanLocation)
+    {
+        cleanName = DomainValueHelper.CleanText(name);
+        cleanLocation = DomainValueHelper.CleanText(location);
+
+        if (cleanName.Length == 0)
+        {
+            return ServiceResult.Fail("Nazwa atrakcji nie może być pusta.");
+        }
+
+        if (cleanLocation.Length == 0)
+        {
+            return ServiceResult.Fail("Lokalizacja atrakcji nie może być pusta.");
+        }
+
+        if (maxParticipants < 1)
+        {
+            return ServiceResult.Fail("Maksymalna liczba osób na atrakcji musi wynosić co najmniej 1.");
+        }
+
+        return ServiceResult.Ok("Dane atrakcji poprawne.");
     }
 }

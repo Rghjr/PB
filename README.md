@@ -1,137 +1,226 @@
-# Attractions – System zarządzania atrakcjami turystycznymi, ofertami i zamówieniami
+# Attractions – System Rezerwacji Atrakcji, Ofert Grupowych i Weryfikacji Kompatybilności (REST API + Web SPA)
 
-Konsolowa aplikacja napisana w języku **C# (.NET 10)** z wykorzystaniem programowania obiektowego (OOP), kolekcji `List<T>` oraz zapytań **LINQ**. Aplikacja działa wyłącznie lokalnie w konsoli i przechowuje wszystkie dane w pamięci operacyjnej RAM (bez baz danych, plików zewnętrznych ani warstwy webowej).
+Aplikacja napisana w języku **C# (.NET 10 / ASP.NET Core)** z wykorzystaniem programowania obiektowego (**OOP**, zasady **SOLID**, inicjalizacja modeli przez konstruktory) oraz zapytań **LINQ**. System udostępnia kompletne **REST API** oraz nowoczesny **interfejs webowy (Single-Page Application)** dla klientów i organizatorów, a także wspiera klasyczny tryb konsolowy (`--console`).
+
+Projekt obsługuje atrakcje turystyczne Krakowa, Wzgórza Wawelskiego i Małopolski, dynamiczny słownik cech zapisany w pliku JSON (`Features.json`), weryfikację kompatybilności ofert i całych pakietów względem profilu uczestnika/grupy (`ParticipantProfile`), limity pojemności i oferty ściśle grupowe (np. 4-osobowe) oraz wielopoziomowy kalkulator zniżek biletowych.
 
 ---
 
 ## Spis treści
 
-1. [Wymagania systemowe](#1-wymagania-systemowe)
-2. [Uruchomienie projektu](#2-uruchomienie-projektu)
+1. [Wymagania systemowe i narzędziowe](#1-wymagania-systemowe-i-narzędziowe)
+2. [Poradnik: Pobieranie z GitHuba i uruchomienie projektu](#2-poradnik-pobieranie-z-githuba-i-uruchomienie-projektu)
 3. [Architektura i struktura projektu](#3-architektura-i-struktura-projektu)
-4. [Role i funkcjonalności](#4-role-i-funkcjonalności)
-5. [Pełny proces zakupu i składania zamówienia](#5-pełny-proces-zakupu-i-składania-zamówienia)
-6. [Relacje i reguły biznesowe](#6-relacje-i-reguły-biznesowe)
-7. [Dane startowe (DataSeeder – Wawel, Kraków i Małopolska)](#7-dane-startowe-dataseeder--wawel-kraków-i-małopolska)
+4. [Główne funkcjonalności systemu](#4-główne-funkcjonalności-systemu)
+5. [Dynamiczny system cech JSON i weryfikacja kompatybilności](#5-dynamiczny-system-cech-json-i-weryfikacja-kompatybilności)
+6. [Grupy, pojemność atrakcji i system zniżek](#6-grupy-pojemność-atrakcji-i-system-zniżek)
+7. [Dokumentacja endpointów REST API](#7-dokumentacja-endpointów-rest-api)
 
 ---
 
-## 1. Wymagania systemowe
+## 1. Wymagania systemowe i narzędziowe
 
-- **.NET 10 SDK** (np. `10.0.x`)
-- System Windows, Linux lub macOS z terminalem obsługującym kodowanie UTF-8
+Aby pobrać, skompilować i uruchomić projekt na swoim komputerze, potrzebujesz:
 
-Sprawdzenie zainstalowanej wersji SDK:
+- **System operacyjny:** Windows 10/11, macOS lub Linux.
+- **.NET 10 SDK** (wersja `10.0.x` lub nowsza) – do pobrania z oficjalnej strony: [https://dotnet.microsoft.com/download/dotnet/10.0](https://dotnet.microsoft.com/download/dotnet/10.0).
+- **Git** (opcjonalnie, do sklonowania repozytorium z wiersza poleceń): [https://git-scm.com/downloads](https://git-scm.com/downloads).
+- **Przeglądarka internetowa:** Chrome, Edge, Firefox lub Safari (obsługująca ES6 Modules).
+- **IDE (opcjonalnie do edycji kodu):** Visual Studio 2022/2026 (z pakietem *ASP.NET i tworzenie aplikacji internetowych*), Cursor lub Visual Studio Code.
+
+> **Brak zewnętrznej bazy danych:** Projekt nie wymaga instalowania SQL Servera, PostgreSQL ani Dockera. Słownik cech i przypisania cech zapisywane są automatycznie w plikach JSON (`Attractions/Data/Features.json` oraz `Attractions/Data/FeatureAssignments.json`), natomiast kolekcje obiektów i zamówień sesyjnych utrzymywane są w pamięci operacyjnej.
+
+Sprawdzenie poprawności instalacji pakietu `.NET SDK` w terminalu (PowerShell / CMD / Bash):
 
 ```powershell
 dotnet --version
 ```
+*(Polecenie powinno zwrócić wersję zaczynającą się od `10.0`, np. `10.0.402`).*
 
 ---
 
-## 2. Uruchomienie projektu
+## 2. Poradnik: Pobieranie z GitHuba i uruchomienie projektu
 
-Z poziomu głównego katalogu solucji uruchom w terminalu:
+### Krok 1: Pobranie projektu z GitHuba
+
+#### Sposób A – za pomocą programu Git (zalecany)
+Otwórz terminal (**PowerShell**, **CMD** lub **Git Bash**), przejdź do wybranego katalogu (np. na Pulpit) i wykonaj polecenia:
+
+```powershell
+git clone https://github.com/Rghjr/PB.git
+cd PB
+```
+
+#### Sposób B – pobranie paczki ZIP (bez programu Git)
+1. Wejdź na stronę repozytorium w przeglądarce: [https://github.com/Rghjr/PB](https://github.com/Rghjr/PB).
+2. Kliknij zielony przycisk **`<> Code`**, a następnie wybierz **`Download ZIP`**.
+3. Rozpakuj pobrane archiwum `.zip` do dowolnego folderu na dysku.
+4. Otwórz terminal wewnątrz rozpakowanego folderu (w systemie Windows: kliknij prawym przyciskiem myszy w folderze i wybierz **„Otwórz w terminalu”**).
+
+---
+
+### Krok 2: Kompilacja i uruchomienie aplikacji Web + REST API
+
+#### Opcja 1 – Uruchomienie z terminala (wiersza poleceń)
+
+Będąc w głównym katalogu projektu (tam, gdzie znajduje się plik `Projekt Biznesowy.slnx`), wykonaj:
 
 ```powershell
 dotnet build
 dotnet run --project Attractions
 ```
 
-Możesz również otworzyć plik solucji `Projekt Biznesowy.slnx` w programie **Visual Studio** lub **Cursor** i uruchomić projekt `Attractions` klawiszem `F5` / `Ctrl+F5`.
+Po uruchomieniu w konsoli pojawi się komunikat:
+```text
+Now listening on: http://localhost:5150
+Application started. Press Ctrl+C to shut down.
+```
 
-> **Uwaga:** Wszystkie dane (atrakcje, oferty, dodatki oraz złożone w trakcie sesji zamówienia) przechowywane są wyłącznie w pamięci RAM (`InMemoryData`). Zamknięcie aplikacji powoduje utratę zmian wprowadzonych podczas sesji.
+Otwórz w przeglądarce adres:
+👉 **[http://localhost:5150](http://localhost:5150)**
+
+Aby zatrzymać serwer, naciśnij w terminalu kombinację klawiszy **`Ctrl + C`**.
+
+#### Opcja 2 – Uruchomienie w Visual Studio lub Cursorze
+1. Otwórz plik solucji **`Projekt Biznesowy.slnx`** w programie Visual Studio lub otwórz cały folder w edytorze Cursor / VS Code.
+2. Upewnij się, że jako projekt startowy wybrany jest profil **`Attractions.Web`**.
+3. Naciśnij klawisz **`F5`** (lub `Ctrl + F5`) – projekt skompiluje się, uruchomi serwer na porcie `5150` i automatycznie otworzy stronę w przeglądarce.
+
+#### Opcja 3 – Uruchomienie w klasycznym trybie konsolowym (CLI)
+Aplikacja zachowuje pełną obsługę interaktywnego menu konsolowego. Aby uruchomić wersję terminalową zamiast serwera WWW, dodaj argument `--console`:
+
+```powershell
+dotnet run --project Attractions -- --console
+```
 
 ---
 
 ## 3. Architektura i struktura projektu
 
 ```text
-Attractions/
+Projekt Biznesowy/
 │
-├── Models/
-│   ├── Attraction.cs            # Model atrakcji turystycznej
-│   ├── Offer.cs                 # Model oferty przypisanej do atrakcji
-│   ├── Addon.cs                 # Model dodatku do oferty
-│   ├── OfferStatus.cs           # Enum statusu oferty (Planned, Withdrawn)
-│   ├── Order.cs                 # Model złożonego zamówienia klienta w pamięci RAM
-│   ├── OrderOfferItem.cs        # Snapshot wybranej oferty (głównej lub powiązanej) w zamówieniu
-│   ├── OrderAddonItem.cs        # Snapshot wybranego dodatku w zamówieniu
-│   └── PaymentMethod.cs         # Enum sposobu płatności (BLIK, Karta, Przelew, Kasa na miejscu)
+├── Attractions/
+│   ├── Controllers/                 # Kontrolery ASP.NET Core REST API
+│   │   ├── AttractionsController.cs # Endpointy CRUD i walidacji atrakcji
+│   │   ├── OffersController.cs      # Endpointy ofert, dodatków i powiązań N:M
+│   │   ├── FeaturesController.cs    # Endpointy słownika cech (Features.json)
+│   │   ├── PackagesController.cs    # Ewaluacja pakietów, symulacja zmian i rabatów
+│   │   └── OrdersController.cs      # Składanie i podgląd zamówień
+│   │
+│   ├── Models/                      # Modele domenowe (inicjalizowane przez konstruktory)
+│   │   ├── Attraction.cs            # Atrakcja turystyczna + pojemność + ValidateAgainst()
+│   │   ├── Offer.cs                 # Oferta/trasa + dziedziczenie cech + limity grup
+│   │   ├── Addon.cs                 # Dodatek + modyfikatory cech (Wymóg / Udogodnienie)
+│   │   ├── FeatureDefinition.cs     # Definicja cechy ze słownika JSON i logika reguł
+│   │   ├── FeatureAssignment.cs     # Przypisanie wartości cechy do obiektu
+│   │   ├── EffectiveFeatureValue.cs # Wynikowa cecha ze źródłem + FeatureSetEvaluator
+│   │   ├── ParticipantProfile.cs    # Profil uczestnika lub grupy uczestników
+│   │   ├── CompatibilityReport.cs   # Raport spełnionych i niespełnionych wymagań
+│   │   ├── ParticipantGroupBreakdown.cs # Podział grupy na kategorie zniżkowe
+│   │   ├── PackagePriceBreakdown.cs # Kalkulator ulg indywidualnych i rabatu grupowego
+│   │   ├── TicketCategory.cs        # Kategorie biletowe i polityka rabatowa
+│   │   ├── Order.cs                 # Zamówienie klienta z rozliczeniem rabatów
+│   │   ├── OrderOfferItem.cs        # Snapshot pozycji i jej cech w zamówieniu
+│   │   └── OrderAddonItem.cs        # Snapshot wybranego dodatku w zamówieniu
+│   │
+│   ├── DTOs/                        # Obiekty transferu danych i konfiguracji pakietu
+│   │   ├── OfferConfiguration.cs    # Rozszerzony pakiet ofert + ValidateAgainst()
+│   │   ├── SelectedRelatedOffer.cs  # Wybrana oferta powiązana wraz z dodatkami
+│   │   ├── ServiceResult.cs         # Zunifikowany wynik operacji biznesowej
+│   │   └── Api/                     # Kontrakty JSON i mapper warstwy REST API
+│   │
+│   ├── Helpers/
+│   │   └── DomainValueHelper.cs     # Wspólne parsowanie, walidacja i normalizacja danych
+│   │
+│   ├── Data/
+│   │   ├── Features.json            # Dynamiczny słownik cech i wymagań
+│   │   ├── FeatureAssignments.json  # Zapis przypisań cech oraz limitów grupowych
+│   │   ├── JsonFeatureStore.cs      # Bezpieczny odczyt i zapis plików JSON
+│   │   ├── InMemoryData.cs          # Kolekcje danych i generatory ID
+│   │   └── DataSeeder.cs            # Baza 15 atrakcji i 50 ofert (Wawel, Kraków, okolice)
+│   │
+│   ├── Services/                    # Warstwa serwisów logiki aplikacyjnej
+│   │   ├── FeatureService.cs        # Zarządzanie słownikiem cech i kontrola użycia
+│   │   ├── AttractionService.cs     # CRUD atrakcji i kaskadowe usuwanie
+│   │   ├── OfferService.cs          # Zarządzanie ofertami, filtrami i powiązaniami N:M
+│   │   ├── AddonService.cs          # Zarządzanie dodatkami ofert
+│   │   ├── OfferExtensionService.cs # Konfiguracja pakietu i symulacja kompatybilności
+│   │   └── OrderService.cs          # Walidacja pojemności, profilu i składanie zamówień
+│   │
+│   ├── Menus/                       # Warstwa interfejsu dla trybu konsolowego (--console)
+│   └── wwwroot/                     # Warstwa frontendowa SPA (HTML5 + CSS3 + ES Modules)
+│       ├── index.html
+│       ├── css/styles.css
+│       └── js/ (app.js, api.js, state.js, ui.js, organizer.js)
 │
-├── DTOs/
-│   ├── OfferConfiguration.cs    # Konfiguracja rozszerzonej oferty (koszyk użytkownika)
-│   ├── SelectedRelatedOffer.cs  # Wybrana oferta powiązana wraz z jej dodatkami
-│   └── ServiceResult.cs         # Zunifikowany wynik operacji biznesowej
-│
-├── Data/
-│   ├── InMemoryData.cs          # Kolekcje List<T> w pamięci RAM i generatory ID
-│   └── DataSeeder.cs            # Rozbudowana baza atrakcji i ofert Wawelu, Krakowa i okolic
-│
-├── Services/
-│   ├── AttractionService.cs     # Logika CRUD atrakcji i kaskadowego usuwania
-│   ├── OfferService.cs          # Logika ofert, filtrowania dat, wycofywania i powiązań N:M
-│   ├── AddonService.cs          # Logika zarządzania dodatkami ofert
-│   ├── OfferExtensionService.cs # Logika rozszerzania oferty o dodatki i powiązane oferty
-│   └── OrderService.cs          # Logika wyboru ofert wg atrakcji i składania zamówień
-│
-├── Menus/
-│   ├── ConsoleHelper.cs         # Walidacja wejścia z konsoli i formatowanie widoków
-│   ├── MainMenu.cs              # Menu główne wyboru roli
-│   ├── OrganizerMenu.cs         # Menu główne organizatora (w tym podgląd zamówień klientów)
-│   ├── AttractionMenu.cs        # Podmenu zarządzania atrakcjami
-│   ├── OfferMenu.cs             # Podmenu zarządzania ofertami
-│   ├── AddonMenu.cs             # Podmenu zarządzania dodatkami
-│   ├── RelatedOfferMenu.cs      # Podmenu zarządzania powiązaniami ofert
-│   └── UserMenu.cs              # Menu użytkownika i 5-etapowy kreator zakupu / zamówienia
-│
-├── Attractions.csproj
-└── Program.cs                   # Punkt wejścia i inicjalizacja zależności
+├── Projekt Biznesowy.slnx
+└── README.md
 ```
 
 ---
 
-## 4. Role i funkcjonalności
+## 4. Główne funkcjonalności systemu
 
-### Organizator
-- **Zarządzanie atrakcjami:** przeglądanie, podgląd szczegółów z przypisanymi ofertami, dodawanie, edycja i kaskadowe usuwanie atrakcji.
-- **Zarządzanie ofertami:** tworzenie wielu ofert dla atrakcji, przeglądanie, szczegóły, edycja (z możliwością przywrócenia wycofanej oferty do statusu `Planned`), wycofywanie i usuwanie.
-- **Filtrowanie ofert:** widoki ofert zaplanowanych (przyszłych), ofert na dzisiaj (`Date.Date == DateTime.Today`) oraz ofert wycofanych (`Withdrawn`).
-- **Zarządzanie dodatkami i powiązaniami:** pełna obsługa dodatków oraz dwukierunkowych powiązań N:M między aktywnymi ofertami.
-- **Podgląd zamówień klientów:** możliwość przeglądania zamówień złożonych przez użytkowników w bieżącej sesji.
+### Strefa Klienta (Użytkownik)
+- **Katalog atrakcji i ofert:** przeglądanie 15 atrakcji oraz 50 ofert z filtrami (*Wszystkie dostępne*, *Na dzisiaj*, *Tylko oferty grupowe*, *Tylko grupy 4-osobowe*), wyszukiwarką tekstową, filtrem liczebności grupy i przełącznikiem *„Tylko zgodne z moim profilem”*.
+- **Profil uczestnika / grupy (`ParticipantProfile`):** definiowanie wieku pojedynczej osoby lub wielopokoleniowej grupy (np. `38, 68, 20, 10`), wzrostu, potrzeby dostępu dla wózka inwalidzkiego, liczby ulg OzN, akceptowalnego wysiłku fizycznego oraz automatycznie generowanych pól dla wszystkich dodatkowych cech z `Features.json`.
+- **5-etapowy konfigurator pakietu:**
+  1. Wybór atrakcji i oferty głównej,
+  2. Dobór dodatków do oferty głównej (z ostrzeżeniem przed dodaniem niekompatybilnego dodatku lub informacją, gdy udogodnienie dopasowuje trasę do profilu),
+  3. Dołączanie rekomendowanych ofert powiązanych N:M wraz z ich dodatkami,
+  4. Podgląd zagregowanych cech całego pakietu i raportu kompatybilności ze wskazaniem źródła każdego ograniczenia,
+  5. Podział grupy na kategorie zniżkowe, wybór płatności (`BLIK`, `Karta`, `Przelew online`, `Kasa na miejscu`) i wygenerowanie potwierdzenia `WAW-RRRR-XXXX`.
 
-### Użytkownik
-- Przeglądanie dostępnych ofert, szczegółów, dodatków oraz powiązanych ofert.
-- Przeglądanie i wybieranie ofert pogrupowanych według atrakcji (opcja `7`).
-- Samodzielne rozszerzanie aktywnej konfiguracji o dodatki (opcja `4`) i oferty powiązane wraz z ich dodatkami (opcja `6`).
-- **Pełny kreator zakupu / składania zamówienia krok po kroku (opcja `8`)** oraz przeglądanie potwierdzeń swoich złożonych zamówień (opcja `9`).
-
----
-
-## 5. Pełny proces zakupu i składania zamówienia
-
-Kreator zamówienia prowadzi użytkownika przez 5 czytelnych kroków:
-1. **Krok 1/5 – Wybór atrakcji:** lista atrakcji posiadających dostępne oferty.
-2. **Krok 2/5 – Wybór oferty:** prezentacja dostępnych ofert wybranej atrakcji i utworzenie konfiguracji (`OfferConfiguration`).
-3. **Krok 3/5 – Wybór proponowanych dodatków:** interaktywne zaznaczanie/odznaczanie dodatków przypisanych do wybranej oferty.
-4. **Krok 4/5 – Wybór proponowanych ofert powiązanych:** rekomendacje powiązanych tras zwiedzania wraz z możliwością dobrania dodatków do każdej dołączonej oferty powiązanej.
-5. **Krok 5/5 – Podsumowanie i finalizacja zamówienia:** pełne zestawienie cen składowych, podanie liczby biletów, imienia i nazwiska, opcjonalnego adresu e-mail oraz formy płatności (`BLIK`, `Karta`, `Przelew online`, `Kasa biletowa na miejscu`), zakończone wygenerowaniem potwierdzenia zamówienia o unikalnym numerze `WAW-RRRR-XXXX`.
-
-Złożenie zamówienia zapisuje niemutowalną migawkę pozycji w `InMemoryData.Orders` i **nie zmienia pierwotnej ceny zapisanej w obiektach `Offer`**.
+### Panel Organizatora
+- **Atrakcje i limity osób:** dodawanie, edycja pojemności `MaxParticipants`, przypisywanie cech ogólnych ze słownika `Features.json` oraz kaskadowe usuwanie.
+- **Oferty i trasy grupowe:** tworzenie i edycja ofert (w tym ofert ściśle 4-osobowych lub dla większych grup), nadpisywanie domyślnych cech atrakcji, wycofywanie ofert (`Withdrawn`) z automatycznym czyszczeniem powiązań.
+- **Dodatki i powiązania N:M:** zarządzanie dodatkami wpływającymi na cechy pakietu oraz dwukierunkowe łączenie i rozłączanie ofert.
+- **Słownik cech (`Features.json`):** dodawanie nowych cech (`Boolean`, `Number`, `OptionList`, `Text`), edycja i usuwanie z kontrolą użycia (ostrzeżenie z listą powiązanych obiektów i możliwością kaskadowego odpięcia).
+- **Zamówienia klientów:** podgląd wszystkich złożonych zamówień wraz z rozliczeniem rabatów.
 
 ---
 
-## 6. Relacje i reguły biznesowe
+## 5. Dynamiczny system cech JSON i weryfikacja kompatybilności
 
-- **Attraction → Offer (1:N):** każda oferta należy do istniejącej atrakcji; usunięcie atrakcji kaskadowo usuwa jej oferty, dodatki i powiązania.
-- **Offer → Addon (1:N):** usunięcie oferty usuwa jej dodatki; wycofana oferta ma zablokowane dodawanie/edycję dodatków oraz rozszerzanie.
-- **Offer ↔ Offer (N:M):** dwukierunkowe powiązania bez auto-powiązań, bez duplikatów i bez ofert wycofanych; wycofanie oferty usuwa jej powiązania.
+- Nowe cechy dodane przez organizatora w słowniku `Features.json` działają natychmiast w całym systemie **bez rekompilacji kodu C#**.
+- **Dziedziczenie i nadpisywanie:** `Attraction` przechowuje ogólne cechy obiektu, natomiast `Offer` dziedziczy je i może je nadpisać lub rozszerzyć (np. *Kopalnia Soli Wieliczka* ma ogólną dostępność windową na *Trasie Turystycznej*, podczas gdy *Podziemna Trasa Górnicza* wymaga ukończenia `10 lat` i `Wysokiej` sprawności fizycznej).
+- **Wpływ dodatków (`Addon`):** dodatek w trybie `ProvideAccommodation` może znieść barierę oferty (np. *Podjazd meleksem* na Kopiec Kościuszki lub *Zjazd windą górniczą*), a w trybie `TightenRequirement` zaostrzyć wymagania (np. *Bilet łączony na Wieżę Ratuszową* ze schodami).
+- **Agregacja pakietowa (`OfferConfiguration.ValidateAgainst`):** minimalny wiek pakietu to maksimum ze wszystkich wybranych pozycji, wysiłek fizyczny odpowiada najbardziej wymagającemu elementowi, a udogodnienie (np. dostęp dla wózków) wymaga spełnienia przez wszystkie pozycje pakietu.
 
 ---
 
-## 7. Dane startowe (DataSeeder – Wawel, Kraków i Małopolska)
+## 6. Grupy, pojemność atrakcji i system zniżek
 
-Przy uruchomieniu w pamięci RAM inicjalizowane są:
-- **15 atrakcji**, w tym **5 stref na Wzgórzu Wawelskim i bezpośrednim Podzamczu** (*Zamek Królewski – Komnaty i Wystawy*, *Katedra Wawelska, Krypty i Dzwon Zygmunt*, *Ogrody Królewskie i Baszty Twierdzy Wawel*, *Smocza Jama, Podzamcze i Bulwary pod Wawelem*, *Ulica Kanonicza i Podwawelski Trakt Królewski*) oraz 10 atrakcji w Krakowie i Małopolsce (m.in. *Zamek Pieskowa Skała – oddział Zamku na Wawelu*, *Rynek Główny*, *Bazylika Mariacka*, *Kazimierz i Skałka*, *Tyniec*, *Wieliczka*, *Morskie Oko*),
-- **44 oferty** (w tym aż **29 ofert wawelskich** – komnaty, prywatne apartamenty, skarbiec ze Szczerbcem, zbrojownia, Wawel Podziemny, Namioty Tureckie, Wawel Odzyskany, trasa rodzinna, Pakiet Królewski VIP, nocne zwiedzanie, katedra, Kaplica Zygmuntowska, Skarbiec Katedralny, trasa koronacyjna, ogrody królowej Bony, Baszta Sandomierska, fortyfikacje, wschód słońca na tarasach, Smocza Jama, rejsy statkiem i gondolą pod Wawelem, spacer z latarnikiem, ul. Kanonicza),
-- **77 dodatków** tematycznych oraz **50 dwukierunkowych powiązań** tworzących gotowe pakiety zwiedzania.
+- **Limity wielkości grup i pula miejsc:** system kontroluje zarówno wymagane widełki pojedynczej rezerwacji (np. oferty `TYLKO 4 os.`: *Królewska Gra Zamkowa*, *Prywatna czteroosobowa łódź flisacka*, *Zespół Ratowników Solnych*, *Pakiet Coaster Team 4-os.*), jak i dostępną pulę wolnych miejsc na ofercie oraz dzienną pojemność atrakcji.
+- **Kategorie biletowe i ulgi indywidualne:**
+  - `Dorosły (normalny)` – **0%** zniżki
+  - `Dziecko (do 12 lat)` – **-50%** zniżki
+  - `Młodzież / Student (13–26 lat)` – **-30%** zniżki
+  - `Senior (65+ lat)` – **-25%** zniżki
+  - `Osoba z niepełnosprawnością` – **-50%** zniżki
+- **Dodatkowy rabat grupowy:** dla grup **4–7 osób** naliczane jest dodatkowe **-5%**, a od **8 osób** dodatkowe **-10%** od sumy po ulgach indywidualnych.
+
+---
+
+## 7. Dokumentacja endpointów REST API
+
+| Metoda | Ścieżka | Opis |
+| :--- | :--- | :--- |
+| `GET` | `/api/features` | Pobiera słownik cech z `Features.json` wraz z liczbą użyć |
+| `GET` | `/api/features/{id}` | Szczegóły użycia cechy w atrakcjach, ofertach i dodatkach |
+| `POST` | `/api/features` | Dodaje nową cechę do `Features.json` |
+| `PUT` | `/api/features/{id}` | Aktualizuje definicję cechy w `Features.json` |
+| `DELETE` | `/api/features/{id}?force=false` | Usuwa cechę (zwraca `409 Conflict`, jeśli jest w użyciu) |
+| `GET` | `/api/attractions` | Pobiera listę atrakcji wraz z pojemnością `maxParticipants` i cechami |
+| `POST / PUT / DELETE` | `/api/attractions[/{id}]` | Zarządzanie atrakcjami turystycznymi |
+| `POST` | `/api/attractions/{id}/validate` | Weryfikuje dostępność atrakcji względem `ParticipantProfile` |
+| `GET` | `/api/offers?filter=...` | Pobiera oferty (`available`, `all`, `planned`, `today`, `withdrawn`, `group`, `group4`) |
+| `POST` | `/api/offers/search` | Wyszukuje i weryfikuje oferty względem przekazanego profilu uczestnika |
+| `POST / PUT / DELETE` | `/api/offers[/{id}]` | Tworzenie, edycja i usuwanie ofert |
+| `POST` | `/api/offers/{id}/withdraw` | Wycofuje ofertę i usuwa jej aktywne powiązania |
+| `GET / POST / PUT / DELETE` | `/api/offers/{offerId}/addons[/{addonId}]` | Zarządzanie dodatkami oferty i ich modyfikatorami cech |
+| `POST / DELETE` | `/api/offers/relations` | Łączenie i rozłączanie dwukierunkowych powiązań ofert N:M |
+| `POST` | `/api/packages/evaluate` | Wylicza ceny, zniżki grupowe, cechy pakietu i raport kompatybilności |
+| `POST` | `/api/packages/preview-change` | Symuluje wpływ dodania dodatku lub oferty powiązanej na kompatybilność |
+| `GET / POST` | `/api/orders` | Przeglądanie oraz składanie zamówień z pełną walidacją biznesową |

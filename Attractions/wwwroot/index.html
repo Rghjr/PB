@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attractions – Wawel, Kraków i Małopolska | System Rezerwacji i Kompatybilności</title>
+  <link rel="stylesheet" href="/css/styles.css?v=4" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand" id="brandHomeBtn" role="button" tabindex="0">
+        <div class="brand-mark">WAW</div>
+        <div>
+          <div class="brand-title">Attractions Kraków &amp; Wawel</div>
+          <div class="brand-subtitle">System atrakcji, pakietów grupowych i weryfikacji profilu</div>
+        </div>
+      </div>
+
+      <div class="topbar-pills">
+        <button type="button" class="status-pill profile-pill" id="headerProfilePill" title="Kliknij, aby skonfigurować profil uczestnika lub grupy">
+          <span class="pill-dot" id="headerProfileDot"></span>
+          <span id="headerProfileText">Profil uczestnika: nie ustawiono</span>
+        </button>
+
+        <button type="button" class="status-pill cart-pill hidden" id="headerCartPill" title="Przejdź do konfiguratora pakietu">
+          <span id="headerCartText">Pakiet: 0,00 zł</span>
+        </button>
+      </div>
+
+      <div class="role-switcher" role="tablist" aria-label="Wybór roli w systemie">
+        <button type="button" class="role-btn active" data-role="user" id="roleUserBtn">Strefa Klienta</button>
+        <button type="button" class="role-btn" data-role="organizer" id="roleOrganizerBtn">Panel Organizatora</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="subnav">
+    <div class="container subnav-inner" id="subnavTabs"></div>
+  </nav>
+
+  <main class="container main-content" id="mainView"></main>
+
+  <!-- Modal uniwersalny (szczegóły, formularze organizatora, ostrzeżenia, potwierdzenia zamówień) -->
+  <div class="modal-backdrop hidden" id="modalBackdrop">
+    <div class="modal-card" id="modalCard" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalTitle">Szczegóły</h3>
+        <button type="button" class="icon-close-btn" id="modalCloseBtn" aria-label="Zamknij okno">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer hidden" id="modalFooter"></div>
+    </div>
+  </div>
+
+  <!-- Kontener powiadomień Toast -->
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <script type="module" src="/js/app.js?v=2"></script>
+</body>
+</html>

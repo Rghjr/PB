@@ -1,3 +1,4 @@
+using Attractions.Models;
 using Attractions.Services;
 
 namespace Attractions.Menus;
@@ -5,10 +6,12 @@ namespace Attractions.Menus;
 public class AttractionMenu
 {
     private readonly AttractionService _attractionService;
+    private readonly FeatureService _featureService;
 
-    public AttractionMenu(AttractionService attractionService)
+    public AttractionMenu(AttractionService attractionService, FeatureService featureService)
     {
         _attractionService = attractionService ?? throw new ArgumentNullException(nameof(attractionService));
+        _featureService = featureService ?? throw new ArgumentNullException(nameof(featureService));
     }
 
     public void Show()
@@ -100,8 +103,24 @@ public class AttractionMenu
         string name = ConsoleHelper.ReadRequiredString("Nazwa atrakcji: ", "Nazwa atrakcji");
         string location = ConsoleHelper.ReadRequiredString("Lokalizacja atrakcji: ", "Lokalizacja atrakcji");
         string description = ConsoleHelper.ReadOptionalString("Opis atrakcji (opcjonalnie): ");
+        int maxParticipants = ConsoleHelper.ReadIntInRangeOrDefault(
+            "Maksymalna liczba osób jednocześnie na atrakcji (1-500)",
+            1,
+            500,
+            defaultValue: 30);
 
-        var result = _attractionService.AddAttraction(name, description, location);
+        List<FeatureAssignment>? features = null;
+        var availableDefs = _featureService.GetAllFeatures();
+        if (availableDefs.Count > 0 &&
+            ConsoleHelper.ReadConfirmation("Czy chcesz teraz przypisać cechy ogólne do tej atrakcji?", defaultYes: false))
+        {
+            features = ConsoleHelper.EditFeatureAssignmentsInteractive(
+                $"CECHY OGÓLNE ATRAKCJI: {name}",
+                availableDefs,
+                Enumerable.Empty<FeatureAssignment>());
+        }
+
+        var result = _attractionService.AddAttraction(name, description, location, features, maxParticipants);
         Console.WriteLine();
         ConsoleHelper.PrintResult(result);
         ConsoleHelper.Pause();
@@ -140,8 +159,30 @@ public class AttractionMenu
             required: false,
             "Opis",
             allowClearWithDash: true);
+        int newMaxParticipants = ConsoleHelper.ReadIntOrKeepCurrent(
+            "Maksymalna liczba osób na atrakcji",
+            existing.MaxParticipants);
 
-        var result = _attractionService.UpdateAttraction(id, newName, newDescription, newLocation);
+        List<FeatureAssignment>? updatedFeatures = null;
+        var availableDefs = _featureService.GetAllFeatures();
+        if (availableDefs.Count > 0 &&
+            ConsoleHelper.ReadConfirmation(
+                $"Czy chcesz edytować cechy ogólne tej atrakcji (aktualnie przypisanych: {existing.Features.Count})?",
+                defaultYes: false))
+        {
+            updatedFeatures = ConsoleHelper.EditFeatureAssignmentsInteractive(
+                $"EDYCJA CECH ATRAKCJI: {newName}",
+                availableDefs,
+                existing.Features);
+        }
+
+        var result = _attractionService.UpdateAttraction(
+            id,
+            newName,
+            newDescription,
+            newLocation,
+            updatedFeatures,
+            newMaxParticipants);
         Console.WriteLine();
         ConsoleHelper.PrintResult(result);
         ConsoleHelper.Pause();

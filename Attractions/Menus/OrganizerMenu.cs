@@ -11,6 +11,7 @@ public class OrganizerMenu
     private readonly OfferMenu _offerMenu;
     private readonly AddonMenu _addonMenu;
     private readonly RelatedOfferMenu _relatedOfferMenu;
+    private readonly FeatureMenu _featureMenu;
 
     public OrganizerMenu(
         AttractionService attractionService,
@@ -19,7 +20,8 @@ public class OrganizerMenu
         AttractionMenu attractionMenu,
         OfferMenu offerMenu,
         AddonMenu addonMenu,
-        RelatedOfferMenu relatedOfferMenu)
+        RelatedOfferMenu relatedOfferMenu,
+        FeatureMenu featureMenu)
     {
         _attractionService = attractionService ?? throw new ArgumentNullException(nameof(attractionService));
         _offerService = offerService ?? throw new ArgumentNullException(nameof(offerService));
@@ -28,6 +30,7 @@ public class OrganizerMenu
         _offerMenu = offerMenu ?? throw new ArgumentNullException(nameof(offerMenu));
         _addonMenu = addonMenu ?? throw new ArgumentNullException(nameof(addonMenu));
         _relatedOfferMenu = relatedOfferMenu ?? throw new ArgumentNullException(nameof(relatedOfferMenu));
+        _featureMenu = featureMenu ?? throw new ArgumentNullException(nameof(featureMenu));
     }
 
     public void Show()
@@ -46,6 +49,7 @@ public class OrganizerMenu
             Console.WriteLine("6. Wyświetl oferty na dzisiaj");
             Console.WriteLine("7. Wyświetl oferty wycofane");
             Console.WriteLine("8. Wyświetl złożone zamówienia klientów");
+            Console.WriteLine("9. Zarządzanie słownikiem cech (Features.json)");
             Console.WriteLine("0. Powrót");
 
             string choice = ConsoleHelper.ReadMenuChoice("Wybierz opcję: ");
@@ -75,6 +79,9 @@ public class OrganizerMenu
                     break;
                 case "8":
                     ShowCustomerOrders();
+                    break;
+                case "9":
+                    _featureMenu.Show();
                     break;
                 case "0":
                     return;

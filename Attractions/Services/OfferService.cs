@@ -1,5 +1,6 @@
 using Attractions.Data;
 using Attractions.DTOs;
+using Attractions.Helpers;
 using Attractions.Models;
 
 namespace Attractions.Services;
@@ -62,6 +63,52 @@ public class OfferService
             .ToList();
     }
 
+    public List<Offer> GetGroupOnlyOffers(bool onlyAvailableForUser = true, int? groupSizeFilter = null)
+    {
+        var query = InMemoryData.Offers.Where(o => o.IsGroupOffer);
+        if (onlyAvailableForUser)
+        {
+            query = query.Where(o => o.IsAvailableForUser);
+        }
+
+        if (groupSizeFilter.HasValue)
+        {
+            int size = groupSizeFilter.Value;
+            query = query.Where(o =>
+            {
+                var attr = _attractionService.GetAttractionById(o.AttractionId);
+                return size >= o.MinParticipants && size <= o.GetEffectiveMaxParticipants(attr);
+            });
+        }
+
+        return query
+            .OrderBy(o => o.Date)
+            .ThenBy(o => o.Id)
+            .ToList();
+    }
+
+    public List<Offer> GetCompatibleOffersForUser(ParticipantProfile profile)
+    {
+        return EvaluateAvailableOffersForProfile(profile)
+            .Where(x => x.Report.IsCompatible)
+            .Select(x => x.Offer)
+            .ToList();
+    }
+
+    public List<(Offer Offer, CompatibilityReport Report)> EvaluateAvailableOffersForProfile(ParticipantProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+
+        return GetAvailableOffersForUser()
+            .Select(offer =>
+            {
+                var attraction = _attractionService.GetAttractionById(offer.AttractionId);
+                var report = offer.ValidateAgainst(profile, attraction, selectedAddons: null, InMemoryData.Features);
+                return (offer, report);
+            })
+            .ToList();
+    }
+
     public ServiceResult<Offer> GetAvailableOfferForUser(int offerId)
     {
         var offer = GetOfferById(offerId);
@@ -83,39 +130,48 @@ public class OfferService
         return ServiceResult<Offer>.Ok(offer, "Oferta jest dostępna.");
     }
 
-    public ServiceResult<Offer> AddOffer(int attractionId, string name, string description, decimal price, DateTime date)
+    public ServiceResult<Offer> AddOffer(
+        int attractionId,
+        string name,
+        string description,
+        decimal price,
+        DateTime date,
+        IEnumerable<FeatureAssignment>? features = null,
+        int minParticipants = 1,
+        int? maxParticipants = null)
     {
-        var attraction = _attractionService.GetAttractionById(attractionId);
-        if (attraction is null)
+        var validation = ValidateOfferInput(
+            attractionId,
+            name,
+            price,
+            minParticipants,
+            maxParticipants,
+            out var attraction,
+            out string cleanName);
+
+        if (!validation.IsSuccess || attraction is null)
         {
-            return ServiceResult<Offer>.Fail($"Oferta musi być przypisana do istniejącej atrakcji – atrakcja o ID {attractionId} nie istnieje.");
+            return ServiceResult<Offer>.Fail(validation.Message);
         }
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return ServiceResult<Offer>.Fail("Nazwa oferty nie może być pusta.");
-        }
-
-        if (price < 0)
-        {
-            return ServiceResult<Offer>.Fail("Cena oferty nie może być ujemna.");
-        }
-
-        var offer = new Offer
-        {
-            Id = InMemoryData.GetNextOfferId(),
-            AttractionId = attractionId,
-            Name = name.Trim(),
-            Description = description?.Trim() ?? string.Empty,
-            Price = decimal.Round(price, 2),
-            Date = date.Date,
-            Status = OfferStatus.Planned
-        };
+        var offer = new Offer(
+            id: InMemoryData.GetNextOfferId(),
+            attractionId: attractionId,
+            name: cleanName,
+            description: DomainValueHelper.CleanText(description),
+            price: price,
+            date: date,
+            status: OfferStatus.Planned,
+            minParticipants: minParticipants,
+            maxParticipants: maxParticipants,
+            features: features);
 
         InMemoryData.Offers.Add(offer);
+        JsonFeatureStore.TrySaveAssignments(out _);
+
         return ServiceResult<Offer>.Ok(
             offer,
-            $"Dodano ofertę \"{offer.Name}\" (ID: {offer.Id}) dla atrakcji \"{attraction.Name}\".");
+            $"Dodano ofertę \"{offer.Name}\" (ID: {offer.Id}, limit osób: {offer.FormatGroupSizeLimit(attraction)}) dla atrakcji \"{attraction.Name}\".");
     }
 
     public ServiceResult UpdateOffer(
@@ -125,7 +181,11 @@ public class OfferService
         string description,
         decimal price,
         DateTime date,
-        OfferStatus status)
+        OfferStatus status,
+        IEnumerable<FeatureAssignment>? features = null,
+        int? minParticipants = null,
+        int? maxParticipants = null,
+        bool updateMaxParticipants = false)
     {
         var offer = GetOfferById(id);
         if (offer is null)
@@ -133,41 +193,46 @@ public class OfferService
             return ServiceResult.Fail($"Nie można edytować oferty – oferta o ID {id} nie istnieje.");
         }
 
-        var attraction = _attractionService.GetAttractionById(attractionId);
-        if (attraction is null)
+        int resolvedMin = minParticipants ?? offer.MinParticipants;
+        int? resolvedMax = updateMaxParticipants ? maxParticipants : offer.MaxParticipants;
+
+        var validation = ValidateOfferInput(
+            attractionId,
+            name,
+            price,
+            resolvedMin,
+            resolvedMax,
+            out var attraction,
+            out string cleanName);
+
+        if (!validation.IsSuccess || attraction is null)
         {
-            return ServiceResult.Fail($"Oferta musi być przypisana do istniejącej atrakcji – atrakcja o ID {attractionId} nie istnieje.");
+            return validation;
         }
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return ServiceResult.Fail("Nazwa oferty nie może być pusta.");
-        }
+        int removedLinksCount = status == OfferStatus.Withdrawn && offer.RelatedOfferIds.Count > 0
+            ? RemoveAllBidirectionalLinks(offer)
+            : 0;
 
-        if (price < 0)
-        {
-            return ServiceResult.Fail("Cena oferty nie może być ujemna.");
-        }
+        offer.UpdateDetails(
+            attractionId,
+            cleanName,
+            DomainValueHelper.CleanText(description),
+            price,
+            date,
+            status,
+            resolvedMin,
+            resolvedMax,
+            features);
 
-        offer.AttractionId = attractionId;
-        offer.Name = name.Trim();
-        offer.Description = description?.Trim() ?? string.Empty;
-        offer.Price = decimal.Round(price, 2);
-        offer.Date = date.Date;
-
-        int removedLinksCount = 0;
-        if (status == OfferStatus.Withdrawn && offer.RelatedOfferIds.Count > 0)
-        {
-            removedLinksCount = RemoveAllBidirectionalLinks(offer);
-        }
-
-        offer.Status = status;
+        JsonFeatureStore.TrySaveAssignments(out _);
 
         string linksNote = removedLinksCount > 0
             ? $" Automatycznie usunięto powiązania z innymi ofertami ({removedLinksCount})."
             : string.Empty;
 
-        return ServiceResult.Ok($"Zaktualizowano ofertę \"{offer.Name}\" (ID: {offer.Id}).{linksNote}");
+        return ServiceResult.Ok(
+            $"Zaktualizowano ofertę \"{offer.Name}\" (ID: {offer.Id}, limit osób: {offer.FormatGroupSizeLimit(attraction)}).{linksNote}");
     }
 
     public ServiceResult WithdrawOffer(int id)
@@ -184,7 +249,7 @@ public class OfferService
         }
 
         int removedLinksCount = RemoveAllBidirectionalLinks(offer);
-        offer.Status = OfferStatus.Withdrawn;
+        offer.SetStatus(OfferStatus.Withdrawn);
 
         string linksNote = removedLinksCount > 0
             ? $" Usunięto również jej powiązania z innymi ofertami ({removedLinksCount})."
@@ -206,6 +271,7 @@ public class OfferService
 
         offer.Addons.Clear();
         InMemoryData.Offers.Remove(offer);
+        JsonFeatureStore.TrySaveAssignments(out _);
 
         return ServiceResult.Ok(
             $"Usunięto ofertę \"{offer.Name}\" (ID: {id}), jej dodatki ({removedAddonsCount}) oraz powiązania ({removedLinksCount}).");
@@ -293,6 +359,62 @@ public class OfferService
 
         return ServiceResult.Ok(
             $"Usunięto dwukierunkowe powiązanie między ofertą \"{firstOffer.Name}\" (ID: {firstOffer.Id}) a \"{secondOffer.Name}\" (ID: {secondOffer.Id}).");
+    }
+
+    private ServiceResult ValidateOfferInput(
+        int attractionId,
+        string? name,
+        decimal price,
+        int minParticipants,
+        int? maxParticipants,
+        out Attraction? attraction,
+        out string cleanName)
+    {
+        cleanName = DomainValueHelper.CleanText(name);
+        attraction = _attractionService.GetAttractionById(attractionId);
+
+        if (attraction is null)
+        {
+            return ServiceResult.Fail($"Oferta musi być przypisana do istniejącej atrakcji – atrakcja o ID {attractionId} nie istnieje.");
+        }
+
+        if (cleanName.Length == 0)
+        {
+            return ServiceResult.Fail("Nazwa oferty nie może być pusta.");
+        }
+
+        if (price < 0)
+        {
+            return ServiceResult.Fail("Cena oferty nie może być ujemna.");
+        }
+
+        if (minParticipants < 1)
+        {
+            return ServiceResult.Fail("Minimalna liczba uczestników musi wynosić co najmniej 1.");
+        }
+
+        if (minParticipants > attraction.MaxParticipants)
+        {
+            return ServiceResult.Fail(
+                $"Minimalna wielkość grupy ({minParticipants} os.) przekracza maksymalną pojemność atrakcji \"{attraction.Name}\" ({attraction.MaxParticipants} os.).");
+        }
+
+        if (maxParticipants.HasValue)
+        {
+            if (maxParticipants.Value < minParticipants)
+            {
+                return ServiceResult.Fail(
+                    $"Maksymalna liczba osób oferty ({maxParticipants.Value}) nie może być mniejsza niż minimalna liczba osób ({minParticipants}).");
+            }
+
+            if (maxParticipants.Value > attraction.MaxParticipants)
+            {
+                return ServiceResult.Fail(
+                    $"Maksymalna liczba osób oferty ({maxParticipants.Value}) nie może przekraczać maksymalnej pojemności atrakcji \"{attraction.Name}\" ({attraction.MaxParticipants} os.).");
+            }
+        }
+
+        return ServiceResult.Ok("Dane oferty poprawne.");
     }
 
     private static int RemoveAllBidirectionalLinks(Offer offer)
