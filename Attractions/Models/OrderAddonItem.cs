@@ -2,7 +2,14 @@ namespace Attractions.Models;
 
 public class OrderAddonItem
 {
-    public int AddonId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public decimal Price { get; set; }
+    public int AddonId { get; }
+    public string Name { get; }
+    public decimal Price { get; }
+
+    public OrderAddonItem(int addonId, string name, decimal price)
+    {
+        AddonId = addonId;
+        Name = name ?? string.Empty;
+        Price = price;
+    }
 }

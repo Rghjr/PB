@@ -4,28 +4,30 @@ namespace Attractions.Data;
 
 public static class InMemoryData
 {
+    public static readonly object SyncRoot = new();
+
     private static int _lastAttractionId;
     private static int _lastOfferId;
     private static int _lastAddonId;
     private static int _lastOrderId;
+    private static int _lastFeatureId;
 
+    public static List<FeatureDefinition> Features { get; set; } = new();
     public static List<Attraction> Attractions { get; set; } = new();
     public static List<Offer> Offers { get; set; } = new();
     public static List<Order> Orders { get; set; } = new();
 
-    public static int GetNextAttractionId()
-    {
-        int currentMax = Attractions.Count > 0 ? Attractions.Max(a => a.Id) : 0;
-        _lastAttractionId = Math.Max(_lastAttractionId, currentMax) + 1;
-        return _lastAttractionId;
-    }
+    public static int GetNextFeatureId() =>
+        ComputeNextId(Features, f => f.Id, ref _lastFeatureId);
 
-    public static int GetNextOfferId()
-    {
-        int currentMax = Offers.Count > 0 ? Offers.Max(o => o.Id) : 0;
-        _lastOfferId = Math.Max(_lastOfferId, currentMax) + 1;
-        return _lastOfferId;
-    }
+    public static int GetNextAttractionId() =>
+        ComputeNextId(Attractions, a => a.Id, ref _lastAttractionId);
+
+    public static int GetNextOfferId() =>
+        ComputeNextId(Offers, o => o.Id, ref _lastOfferId);
+
+    public static int GetNextOrderId() =>
+        ComputeNextId(Orders, o => o.Id, ref _lastOrderId);
 
     public static int GetNextAddonId()
     {
@@ -39,10 +41,13 @@ public static class InMemoryData
         return _lastAddonId;
     }
 
-    public static int GetNextOrderId()
+    private static int ComputeNextId<T>(
+        IReadOnlyCollection<T> items,
+        Func<T, int> idSelector,
+        ref int lastTracker)
     {
-        int currentMax = Orders.Count > 0 ? Orders.Max(o => o.Id) : 0;
-        _lastOrderId = Math.Max(_lastOrderId, currentMax) + 1;
-        return _lastOrderId;
+        int currentMax = items.Count > 0 ? items.Max(idSelector) : 0;
+        lastTracker = Math.Max(lastTracker, currentMax) + 1;
+        return lastTracker;
     }
 }

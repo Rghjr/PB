@@ -1,0 +1,91 @@
+{
+  "features": [
+    {
+      "id": 1,
+      "name": "Dostępność dla wózków inwalidzkich",
+      "type": "Boolean",
+      "description": "Czy atrakcja lub trasa jest dostępna dla osób poruszających się na wózku inwalidzkim",
+      "comparisonRule": "FacilityAvailable",
+      "profileBindingKey": "wheelchair"
+    },
+    {
+      "id": 2,
+      "name": "Minimalny wiek",
+      "type": "Number",
+      "description": "Minimalny wymagany wiek uczestnika w latach",
+      "comparisonRule": "MinThreshold",
+      "unit": "lat",
+      "profileBindingKey": "min_age"
+    },
+    {
+      "id": 3,
+      "name": "Maksymalny wiek",
+      "type": "Number",
+      "description": "Maksymalny dopuszczalny wiek uczestnika w latach",
+      "comparisonRule": "MaxThreshold",
+      "unit": "lat",
+      "profileBindingKey": "max_age"
+    },
+    {
+      "id": 4,
+      "name": "Wymagana obecność opiekuna",
+      "type": "Boolean",
+      "description": "Czy osoby niepełnoletnie wymagają obecności pełnoletniego opiekuna",
+      "comparisonRule": "ConditionRequired",
+      "profileBindingKey": "guardian_required"
+    },
+    {
+      "id": 5,
+      "name": "Wymagana sprawność fizyczna",
+      "type": "OptionList",
+      "description": "Wymagany poziom kondycji i sprawności fizycznej na trasie",
+      "comparisonRule": "MaxLevelIndex",
+      "allowedValues": [
+        "Niski",
+        "Średni",
+        "Wysoki"
+      ],
+      "profileBindingKey": "physical_demand"
+    },
+    {
+      "id": 6,
+      "name": "Wymagany minimalny wzrost",
+      "type": "Number",
+      "description": "Minimalny wzrost uczestnika w centymetrach",
+      "comparisonRule": "MinThreshold",
+      "unit": "cm",
+      "profileBindingKey": "min_height"
+    },
+    {
+      "id": 7,
+      "name": "Dostępność dla dzieci",
+      "type": "Boolean",
+      "description": "Czy atrakcja lub oferta jest dostosowana i przyjazna dla dzieci",
+      "comparisonRule": "FacilityAvailable",
+      "profileBindingKey": "child_friendly"
+    },
+    {
+      "id": 8,
+      "name": "Możliwość wejścia z wózkiem dziecięcym",
+      "type": "Boolean",
+      "description": "Czy trasę można pokonać z wózkiem dziecięcym bez barier architektonicznych",
+      "comparisonRule": "FacilityAvailable",
+      "profileBindingKey": "stroller_access"
+    },
+    {
+      "id": 9,
+      "name": "Dostępność windy",
+      "type": "Boolean",
+      "description": "Czy w obiekcie lub na trasie zwiedzania dostępna jest winda",
+      "comparisonRule": "FacilityAvailable",
+      "profileBindingKey": "elevator"
+    },
+    {
+      "id": 10,
+      "name": "Język oprowadzania / materiałów",
+      "type": "Text",
+      "description": "Dostępne języki przewodnika, audioprzewodnika lub materiałów edukacyjnych",
+      "comparisonRule": "ExactOrContainsMatch"
+    }
+  ]
+}

@@ -8,15 +8,18 @@ public class AddonMenu
     private readonly AddonService _addonService;
     private readonly OfferService _offerService;
     private readonly AttractionService _attractionService;
+    private readonly FeatureService _featureService;
 
     public AddonMenu(
         AddonService addonService,
         OfferService offerService,
-        AttractionService attractionService)
+        AttractionService attractionService,
+        FeatureService featureService)
     {
         _addonService = addonService ?? throw new ArgumentNullException(nameof(addonService));
         _offerService = offerService ?? throw new ArgumentNullException(nameof(offerService));
         _attractionService = attractionService ?? throw new ArgumentNullException(nameof(attractionService));
+        _featureService = featureService ?? throw new ArgumentNullException(nameof(featureService));
     }
 
     public void Show()
@@ -131,7 +134,21 @@ public class AddonMenu
         string description = ConsoleHelper.ReadOptionalString("Opis dodatku (opcjonalnie): ");
         decimal price = ConsoleHelper.ReadNonNegativeDecimal("Cena dodatku (zł): ", "Cena dodatku");
 
-        var result = _addonService.AddAddon(offer.Id, name, description, price);
+        List<FeatureAssignment>? modifiers = null;
+        var availableDefs = _featureService.GetAllFeatures();
+        if (availableDefs.Count > 0 &&
+            ConsoleHelper.ReadConfirmation(
+                "Czy ten dodatek wpływa na wymagania lub udogodnienia pakietu (np. schody, wiek, winda)?",
+                defaultYes: false))
+        {
+            modifiers = ConsoleHelper.EditFeatureAssignmentsInteractive(
+                $"WPŁYW DODATKU NA CECHY: {name}",
+                availableDefs,
+                Enumerable.Empty<FeatureAssignment>(),
+                isAddonEditor: true);
+        }
+
+        var result = _addonService.AddAddon(offer.Id, name, description, price, modifiers);
         Console.WriteLine();
         ConsoleHelper.PrintResult(result);
         ConsoleHelper.Pause();
@@ -193,7 +210,21 @@ public class AddonMenu
             existingAddon.Price,
             "Cena dodatku");
 
-        var result = _addonService.UpdateAddon(offer.Id, addonId, newName, newDescription, newPrice);
+        List<FeatureAssignment>? updatedModifiers = null;
+        var availableDefs = _featureService.GetAllFeatures();
+        if (availableDefs.Count > 0 &&
+            ConsoleHelper.ReadConfirmation(
+                $"Czy chcesz edytować wpływ dodatku na cechy pakietu (aktualnych modyfikatorów: {existingAddon.FeatureModifiers.Count})?",
+                defaultYes: false))
+        {
+            updatedModifiers = ConsoleHelper.EditFeatureAssignmentsInteractive(
+                $"EDYCJA WPŁYWU DODATKU NA CECHY: {newName}",
+                availableDefs,
+                existingAddon.FeatureModifiers,
+                isAddonEditor: true);
+        }
+
+        var result = _addonService.UpdateAddon(offer.Id, addonId, newName, newDescription, newPrice, updatedModifiers);
         Console.WriteLine();
         ConsoleHelper.PrintResult(result);
         ConsoleHelper.Pause();

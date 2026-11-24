@@ -1,5 +1,6 @@
 using Attractions.Data;
 using Attractions.DTOs;
+using Attractions.Helpers;
 using Attractions.Models;
 
 namespace Attractions.Services;
@@ -28,54 +29,60 @@ public class AddonService
         return ServiceResult<List<Addon>>.Ok(addons, $"Pobrano dodatki dla oferty \"{offer.Name}\".");
     }
 
-    public ServiceResult<Addon> AddAddon(int offerId, string name, string description, decimal price)
+    public ServiceResult<Addon> AddAddon(
+        int offerId,
+        string name,
+        string description,
+        decimal price,
+        IEnumerable<FeatureAssignment>? featureModifiers = null)
     {
-        var offer = _offerService.GetOfferById(offerId);
-        if (offer is null)
+        var validation = ValidateEditableOfferAndFields(
+            offerId,
+            name,
+            price,
+            "Nie można dodawać dodatków do wycofanej oferty.",
+            out var offer,
+            out string cleanName);
+
+        if (!validation.IsSuccess || offer is null)
         {
-            return ServiceResult<Addon>.Fail($"Dodatek musi należeć do istniejącej oferty – oferta o ID {offerId} nie istnieje.");
+            return ServiceResult<Addon>.Fail(validation.Message);
         }
 
-        if (offer.Status == OfferStatus.Withdrawn)
-        {
-            return ServiceResult<Addon>.Fail("Nie można dodawać dodatków do wycofanej oferty.");
-        }
-
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return ServiceResult<Addon>.Fail("Nazwa dodatku nie może być pusta.");
-        }
-
-        if (price < 0)
-        {
-            return ServiceResult<Addon>.Fail("Cena dodatku nie może być ujemna.");
-        }
-
-        var addon = new Addon
-        {
-            Id = InMemoryData.GetNextAddonId(),
-            Name = name.Trim(),
-            Description = description?.Trim() ?? string.Empty,
-            Price = decimal.Round(price, 2)
-        };
+        var addon = new Addon(
+            id: InMemoryData.GetNextAddonId(),
+            name: cleanName,
+            description: DomainValueHelper.CleanText(description),
+            price: price,
+            featureModifiers: featureModifiers);
 
         offer.Addons.Add(addon);
+        JsonFeatureStore.TrySaveAssignments(out _);
+
         return ServiceResult<Addon>.Ok(
             addon,
             $"Dodano dodatek \"{addon.Name}\" (ID: {addon.Id}) do oferty \"{offer.Name}\".");
     }
 
-    public ServiceResult UpdateAddon(int offerId, int addonId, string name, string description, decimal price)
+    public ServiceResult UpdateAddon(
+        int offerId,
+        int addonId,
+        string name,
+        string description,
+        decimal price,
+        IEnumerable<FeatureAssignment>? featureModifiers = null)
     {
-        var offer = _offerService.GetOfferById(offerId);
-        if (offer is null)
-        {
-            return ServiceResult.Fail($"Oferta o ID {offerId} nie istnieje.");
-        }
+        var validation = ValidateEditableOfferAndFields(
+            offerId,
+            name,
+            price,
+            "Nie można edytować dodatków wycofanej oferty.",
+            out var offer,
+            out string cleanName);
 
-        if (offer.Status == OfferStatus.Withdrawn)
+        if (!validation.IsSuccess || offer is null)
         {
-            return ServiceResult.Fail("Nie można edytować dodatków wycofanej oferty.");
+            return validation;
         }
 
         var addon = offer.Addons.FirstOrDefault(a => a.Id == addonId);
@@ -84,20 +91,13 @@ public class AddonService
             return ServiceResult.Fail($"Nie można edytować dodatku – dodatek o ID {addonId} nie istnieje w ofercie \"{offer.Name}\".");
         }
 
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return ServiceResult.Fail("Nazwa dodatku nie może być pusta.");
-        }
+        addon.UpdateDetails(
+            cleanName,
+            DomainValueHelper.CleanText(description),
+            price,
+            featureModifiers);
 
-        if (price < 0)
-        {
-            return ServiceResult.Fail("Cena dodatku nie może być ujemna.");
-        }
-
-        addon.Name = name.Trim();
-        addon.Description = description?.Trim() ?? string.Empty;
-        addon.Price = decimal.Round(price, 2);
-
+        JsonFeatureStore.TrySaveAssignments(out _);
         return ServiceResult.Ok($"Zaktualizowano dodatek \"{addon.Name}\" (ID: {addon.Id}) w ofercie \"{offer.Name}\".");
     }
 
@@ -116,6 +116,41 @@ public class AddonService
         }
 
         offer.Addons.Remove(addon);
+        JsonFeatureStore.TrySaveAssignments(out _);
         return ServiceResult.Ok($"Usunięto dodatek \"{addon.Name}\" (ID: {addonId}) z oferty \"{offer.Name}\".");
+    }
+
+    private ServiceResult ValidateEditableOfferAndFields(
+        int offerId,
+        string? name,
+        decimal price,
+        string withdrawnErrorMessage,
+        out Offer? offer,
+        out string cleanName)
+    {
+        cleanName = DomainValueHelper.CleanText(name);
+        offer = _offerService.GetOfferById(offerId);
+
+        if (offer is null)
+        {
+            return ServiceResult.Fail($"Oferta o ID {offerId} nie istnieje.");
+        }
+
+        if (offer.Status == OfferStatus.Withdrawn)
+        {
+            return ServiceResult.Fail(withdrawnErrorMessage);
+        }
+
+        if (cleanName.Length == 0)
+        {
+            return ServiceResult.Fail("Nazwa dodatku nie może być pusta.");
+        }
+
+        if (price < 0)
+        {
+            return ServiceResult.Fail("Cena dodatku nie może być ujemna.");
+        }
+
+        return ServiceResult.Ok("Dane dodatku poprawne.");
     }
 }

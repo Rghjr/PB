@@ -7,11 +7,16 @@ public class OfferMenu
 {
     private readonly OfferService _offerService;
     private readonly AttractionService _attractionService;
+    private readonly FeatureService _featureService;
 
-    public OfferMenu(OfferService offerService, AttractionService attractionService)
+    public OfferMenu(
+        OfferService offerService,
+        AttractionService attractionService,
+        FeatureService featureService)
     {
         _offerService = offerService ?? throw new ArgumentNullException(nameof(offerService));
         _attractionService = attractionService ?? throw new ArgumentNullException(nameof(attractionService));
+        _featureService = featureService ?? throw new ArgumentNullException(nameof(featureService));
     }
 
     public void Show()
@@ -128,7 +133,8 @@ public class OfferMenu
         ConsoleHelper.DisplayAttractionsList(attractions, id => _attractionService.GetOffersForAttraction(id).Count);
 
         int attractionId = ConsoleHelper.ReadInt("Podaj ID atrakcji dla nowej oferty: ");
-        if (_attractionService.GetAttractionById(attractionId) is null)
+        var parentAttraction = _attractionService.GetAttractionById(attractionId);
+        if (parentAttraction is null)
         {
             ConsoleHelper.PrintError($"Oferta musi być przypisana do istniejącej atrakcji – brak atrakcji o ID {attractionId}.");
             ConsoleHelper.Pause();
@@ -137,10 +143,49 @@ public class OfferMenu
 
         string name = ConsoleHelper.ReadRequiredString("Nazwa oferty: ", "Nazwa oferty");
         string description = ConsoleHelper.ReadOptionalString("Opis oferty (opcjonalnie): ");
-        decimal price = ConsoleHelper.ReadNonNegativeDecimal("Cena podstawowa oferty (zł): ", "Cena oferty");
+        decimal price = ConsoleHelper.ReadNonNegativeDecimal("Cena podstawowa oferty za 1 os. (zł): ", "Cena oferty");
         DateTime date = ConsoleHelper.ReadDate("Data oferty (RRRR-MM-DD): ");
 
-        var result = _offerService.AddOffer(attractionId, name, description, price, date);
+        int minParticipants = ConsoleHelper.ReadIntInRangeOrDefault(
+            $"Minimalna liczba osób (1 = indywidualna, np. 4 = tylko dla grup od 4 os., maks. w atrakcji: {parentAttraction.MaxParticipants})",
+            1,
+            parentAttraction.MaxParticipants,
+            defaultValue: 1);
+
+        int defaultMax = parentAttraction.MaxParticipants;
+        int chosenMax = ConsoleHelper.ReadIntInRangeOrDefault(
+            $"Maksymalna liczba osób dla oferty ({minParticipants}-{parentAttraction.MaxParticipants}, np. {minParticipants} dla ściśle {minParticipants}-osobowej grupy)",
+            minParticipants,
+            parentAttraction.MaxParticipants,
+            defaultValue: defaultMax);
+
+        int? explicitMax = chosenMax < parentAttraction.MaxParticipants || minParticipants > 1
+            ? chosenMax
+            : null;
+
+        List<FeatureAssignment>? offerFeatures = null;
+        var availableDefs = _featureService.GetAllFeatures();
+        if (availableDefs.Count > 0 &&
+            ConsoleHelper.ReadConfirmation(
+                "Czy chcesz przypisać lub nadpisać cechy / wymagania dla tej oferty?",
+                defaultYes: false))
+        {
+            offerFeatures = ConsoleHelper.EditFeatureAssignmentsInteractive(
+                $"CECHY I WYMAGANIA OFERTY: {name}",
+                availableDefs,
+                Enumerable.Empty<FeatureAssignment>(),
+                inheritedFromAttraction: parentAttraction);
+        }
+
+        var result = _offerService.AddOffer(
+            attractionId,
+            name,
+            description,
+            price,
+            date,
+            offerFeatures,
+            minParticipants,
+            explicitMax);
         Console.WriteLine();
         ConsoleHelper.PrintResult(result);
         ConsoleHelper.Pause();
@@ -174,7 +219,8 @@ public class OfferMenu
         ConsoleHelper.DisplayAttractionsList(attractions, id => _attractionService.GetOffersForAttraction(id).Count);
 
         int newAttractionId = ConsoleHelper.ReadIntOrKeepCurrent("ID atrakcji", existing.AttractionId);
-        if (_attractionService.GetAttractionById(newAttractionId) is null)
+        var newAttraction = _attractionService.GetAttractionById(newAttractionId);
+        if (newAttraction is null)
         {
             ConsoleHelper.PrintError($"Nie istnieje atrakcja o ID {newAttractionId}. Zmiany nie zostały zapisane.");
             ConsoleHelper.Pause();
@@ -190,7 +236,29 @@ public class OfferMenu
             allowClearWithDash: true);
         decimal newPrice = ConsoleHelper.ReadNonNegativeDecimalOrKeepCurrent("Cena podstawowa", existing.Price, "Cena oferty");
         DateTime newDate = ConsoleHelper.ReadDateOrKeepCurrent("Data oferty (RRRR-MM-DD)", existing.Date);
+        int newMinParticipants = ConsoleHelper.ReadIntOrKeepCurrent("Minimalna liczba osób w grupie", existing.MinParticipants);
+        int currentEffectiveMax = existing.GetEffectiveMaxParticipants(newAttraction);
+        int newMaxInput = ConsoleHelper.ReadIntOrKeepCurrent(
+            $"Maksymalna liczba osób (pojemność atrakcji: {newAttraction.MaxParticipants})",
+            Math.Min(currentEffectiveMax, newAttraction.MaxParticipants));
+        int? newMaxParticipants = newMaxInput < newAttraction.MaxParticipants || newMinParticipants > 1
+            ? newMaxInput
+            : null;
         OfferStatus newStatus = ConsoleHelper.ReadOfferStatusOrKeepCurrent(existing.Status);
+
+        List<FeatureAssignment>? updatedFeatures = null;
+        var availableDefs = _featureService.GetAllFeatures();
+        if (availableDefs.Count > 0 &&
+            ConsoleHelper.ReadConfirmation(
+                $"Czy chcesz edytować cechy i wymagania tej oferty (własnych nadpisań: {existing.Features.Count})?",
+                defaultYes: false))
+        {
+            updatedFeatures = ConsoleHelper.EditFeatureAssignmentsInteractive(
+                $"EDYCJA CECH OFERTY: {newName}",
+                availableDefs,
+                existing.Features,
+                inheritedFromAttraction: newAttraction);
+        }
 
         var result = _offerService.UpdateOffer(
             offerId,
@@ -199,7 +267,11 @@ public class OfferMenu
             newDescription,
             newPrice,
             newDate,
-            newStatus);
+            newStatus,
+            updatedFeatures,
+            newMinParticipants,
+            newMaxParticipants,
+            updateMaxParticipants: true);
 
         Console.WriteLine();
         ConsoleHelper.PrintResult(result);
